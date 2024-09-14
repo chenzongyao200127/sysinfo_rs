@@ -1,6 +1,6 @@
 [package]
 name = "sysinfo_rs"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Chen Zongyao <solar1s@163.com>"]
 edition = "2021"
 
