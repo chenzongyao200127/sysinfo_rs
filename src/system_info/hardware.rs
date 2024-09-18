@@ -1,5 +1,4 @@
 use anyhow::Result;
-use libudev_sys as udev;
 use pnet::datalink;
 use serde::{Deserialize, Serialize};
 use std::ffi::{CStr, CString};
@@ -57,7 +56,7 @@ impl HardwareInfo {
             disk_serial_number: get_root_device()
                 .and_then(|disk_part_name| get_serial_number(&disk_part_name))
                 .unwrap_or_default(),
-            mac_addresses: get_mac_addresses().unwrap_or_default(),
+            mac_addresses: get_mac_addresses()?,
             bios_info: read_bios_info(BIOS_INFO_PATH).unwrap_or_default(),
             system_info: read_system_info(SYSTEM_INFO_PATH).unwrap_or_default(),
             enclosure_info: read_enclosure_info(ENCLOSURE_INFO_PATH).unwrap_or_default(),
@@ -205,6 +204,8 @@ fn get_root_device() -> Result<String> {
 
 #[cfg(target_arch = "x86_64")]
 fn get_serial_number(disk_part_name: &str) -> Result<String> {
+    use libudev_sys as udev;
+
     unsafe {
         let udev = udev::udev_new();
         if udev.is_null() {
@@ -246,16 +247,30 @@ fn get_serial_number(disk_part_name: &str) -> Result<String> {
 }
 
 #[cfg(target_arch = "aarch64")]
-fn get_serial_number(_disk_part_name: &str) -> Result<String> {
-    Err(anyhow::anyhow!("Unsupported architecture: aarch64"))
+fn get_serial_number(disk_part_name: &str) -> Result<String> {
+    let sys_block_path = format!("/sys/block/{}/device/serial", disk_part_name);
+
+    if Path::new(&sys_block_path).exists() {
+        let serial = fs::read_to_string(sys_block_path)?.trim().to_string();
+        if !serial.is_empty() {
+            return Ok(serial);
+        }
+    }
+
+    Err(anyhow::anyhow!("Serial number not found for aarch64"))
 }
 
 fn get_mac_addresses() -> Result<String> {
-    Ok(datalink::interfaces()
-        .into_iter()
-        .filter_map(|iface| iface.mac.map(|mac| mac.to_string()))
-        .collect::<Vec<_>>()
-        .join(", "))
+    let interfaces = datalink::interfaces();
+    let mut mac_addresses = Vec::new();
+
+    for iface in interfaces {
+        if let Some(mac) = iface.mac {
+            mac_addresses.push(format!("{}", mac));
+        }
+    }
+
+    Ok(mac_addresses.join(", "))
 }
 
 fn read_bios_info<P: AsRef<Path>>(path: P) -> Result<BiosInfo> {
