@@ -70,14 +70,19 @@ fn is_hypervisor_present() -> bool {
     use std::arch::x86_64::__cpuid;
 
     let basic_cpuid = unsafe { __cpuid(1) };
-    if (basic_cpuid.ecx & (1 << 31)) != 0 {
-        return true;
-    }
+    let is_vm = (basic_cpuid.ecx & (1 << 31)) != 0;
+    println!("VM check: {}", is_vm);
 
-    get_hypervisor_name().is_some()
-        || check_vmx_or_svm()
-        || check_sys_hypervisor()
-        || check_dmesg_hypervisor()
+    let hypervisor_name = get_hypervisor_name();
+    println!("Hypervisor name: {:?}", hypervisor_name);
+
+    let sys_hypervisor = check_sys_hypervisor();
+    println!("Sys hypervisor check: {}", sys_hypervisor);
+
+    let dmesg_hypervisor = check_dmesg_hypervisor();
+    println!("Dmesg hypervisor check: {}", dmesg_hypervisor);
+
+    is_vm || hypervisor_name.is_some() || sys_hypervisor || dmesg_hypervisor
 }
 
 #[cfg(target_arch = "x86_64")]
@@ -101,75 +106,95 @@ fn get_hypervisor_name() -> Option<&'static str> {
     }
 }
 
-#[cfg(target_arch = "x86_64")]
-fn check_vmx_or_svm() -> bool {
-    use std::arch::x86_64::__cpuid;
-
-    let cpuid = unsafe { __cpuid(1) };
-    (cpuid.ecx & (1 << 5) != 0) || (cpuid.ecx & (1 << 2) != 0)
-}
-
 fn check_sys_hypervisor() -> bool {
-    fs::read_to_string("/sys/hypervisor/type")
+    let sys_hypervisor = fs::read_to_string("/sys/hypervisor/type")
         .map(|content| content.contains("xen") || content.contains("kvm"))
-        .unwrap_or(false)
+        .unwrap_or(false);
+    sys_hypervisor
 }
 
 fn check_dmesg_hypervisor() -> bool {
-    Command::new("dmesg")
+    let dmesg_hypervisor = Command::new("dmesg")
         .output()
         .map(|output| String::from_utf8_lossy(&output.stdout).contains("hypervisor"))
-        .unwrap_or(false)
+        .unwrap_or(false);
+    dmesg_hypervisor
 }
 
 #[cfg(target_arch = "aarch64")]
 fn is_hypervisor_present() -> bool {
-    fs::read_to_string("/proc/cpuinfo")
+    let cpuinfo = fs::read_to_string("/proc/cpuinfo")
         .map(|content| content.contains("hypervisor"))
-        .unwrap_or(false)
-        || fs::read_to_string("/sys/hypervisor/properties/capabilities")
-            .map(|content| content.contains("kvm"))
-            .unwrap_or(false)
-        || Command::new("rdmsr")
-            .arg("0xC0C")
-            .output()
-            .map(|output| String::from_utf8_lossy(&output.stdout).contains("hypervisor"))
-            .unwrap_or(false)
-        || Command::new("dmesg")
-            .output()
-            .map(|output| {
-                let output_str = String::from_utf8_lossy(&output.stdout);
-                output_str.contains("virtualization") || output_str.contains("hypervisor")
-            })
-            .unwrap_or(false)
-        || Command::new("cat")
-            .arg("/proc/device-tree/hypervisor")
-            .output()
-            .map(|output| !String::from_utf8_lossy(&output.stdout).is_empty())
-            .unwrap_or(false)
+        .unwrap_or(false);
+    println!("CPUinfo check: {}", cpuinfo);
+
+    let sys_hypervisor = fs::read_to_string("/sys/hypervisor/properties/capabilities")
+        .map(|content| content.contains("kvm"))
+        .unwrap_or(false);
+    println!("Sys hypervisor check: {}", sys_hypervisor);
+
+    let rdmsr = Command::new("rdmsr")
+        .arg("0xC0C")
+        .output()
+        .map(|output| String::from_utf8_lossy(&output.stdout).contains("hypervisor"))
+        .unwrap_or(false);
+    println!("Rdmsr check: {}", rdmsr);
+
+    let dmesg = Command::new("dmesg")
+        .output()
+        .map(|output| {
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            output_str.contains("virtualization") || output_str.contains("hypervisor")
+        })
+        .unwrap_or(false);
+    println!("Dmesg check: {}", dmesg);
+
+    let device_tree = Command::new("cat")
+        .arg("/proc/device-tree/hypervisor")
+        .output()
+        .map(|output| !String::from_utf8_lossy(&output.stdout).is_empty())
+        .unwrap_or(false);
+    println!("Device tree check: {}", device_tree);
+
+    cpuinfo || sys_hypervisor || rdmsr || dmesg || device_tree
 }
 
+// TODO: THIS IS A TEMPORARY SOLUTION
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 fn is_hypervisor_present() -> bool {
-    fs::read_to_string("/proc/cpuinfo")
+    let cpuinfo = fs::read_to_string("/proc/cpuinfo")
         .map(|content| content.contains("hypervisor"))
-        .unwrap_or(false)
+        .unwrap_or(false);
+    println!("CPUinfo check: {}", cpuinfo);
+    cpuinfo
 }
 
 fn determine_virtual_machine_status() -> bool {
-    is_hypervisor_present() || is_running_in_docker() || is_systemd_running_in_container()
+    let is_hypervisor = is_hypervisor_present();
+
+    let is_docker = is_running_in_docker();
+
+    let is_systemd_container = is_systemd_running_in_container();
+
+    is_hypervisor || is_docker || is_systemd_container
 }
 
 fn is_running_in_docker() -> bool {
-    fs::metadata("/.dockerenv").is_ok() || fs::metadata("/.dockerinit").is_ok()
+    let dockerenv = fs::metadata("/.dockerenv").is_ok();
+
+    let dockerinit = fs::metadata("/.dockerinit").is_ok();
+
+    dockerenv || dockerinit
 }
 
 fn is_systemd_running_in_container() -> bool {
-    Command::new("systemctl")
+    let systemd_container = Command::new("systemctl")
         .arg("is-system-running")
         .output()
+        .map_err(|_| false)
         .map(|output| String::from_utf8_lossy(&output.stdout).contains("running in container"))
-        .unwrap_or(false)
+        .unwrap_or(false);
+    systemd_container
 }
 
 fn get_root_device() -> Result<String> {
