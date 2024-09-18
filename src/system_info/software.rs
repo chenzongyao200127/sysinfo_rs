@@ -31,7 +31,7 @@ fn get_uname() -> Result<String> {
         info
     };
 
-    let to_string = |field: [i8; 65]| {
+    let to_string = |field: &[libc::c_char]| {
         unsafe { CStr::from_ptr(field.as_ptr()) }
             .to_str()
             .map(String::from)
@@ -39,11 +39,11 @@ fn get_uname() -> Result<String> {
     };
 
     let uname_info = serde_json::json!({
-        "sysname": to_string(utsname.sysname)?,
-        "nodename": to_string(utsname.nodename)?,
-        "release": to_string(utsname.release)?,
-        "version": to_string(utsname.version)?,
-        "machine": to_string(utsname.machine)?
+        "sysname": to_string(&utsname.sysname)?,
+        "nodename": to_string(&utsname.nodename)?,
+        "release": to_string(&utsname.release)?,
+        "version": to_string(&utsname.version)?,
+        "machine": to_string(&utsname.machine)?
     });
 
     Ok(uname_info.to_string())

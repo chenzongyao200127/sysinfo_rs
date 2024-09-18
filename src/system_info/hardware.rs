@@ -71,16 +71,12 @@ fn is_hypervisor_present() -> bool {
 
     let basic_cpuid = unsafe { __cpuid(1) };
     let is_vm = (basic_cpuid.ecx & (1 << 31)) != 0;
-    println!("VM check: {}", is_vm);
 
     let hypervisor_name = get_hypervisor_name();
-    println!("Hypervisor name: {:?}", hypervisor_name);
 
     let sys_hypervisor = check_sys_hypervisor();
-    println!("Sys hypervisor check: {}", sys_hypervisor);
 
     let dmesg_hypervisor = check_dmesg_hypervisor();
-    println!("Dmesg hypervisor check: {}", dmesg_hypervisor);
 
     is_vm || hypervisor_name.is_some() || sys_hypervisor || dmesg_hypervisor
 }
@@ -126,19 +122,16 @@ fn is_hypervisor_present() -> bool {
     let cpuinfo = fs::read_to_string("/proc/cpuinfo")
         .map(|content| content.contains("hypervisor"))
         .unwrap_or(false);
-    println!("CPUinfo check: {}", cpuinfo);
 
     let sys_hypervisor = fs::read_to_string("/sys/hypervisor/properties/capabilities")
         .map(|content| content.contains("kvm"))
         .unwrap_or(false);
-    println!("Sys hypervisor check: {}", sys_hypervisor);
 
     let rdmsr = Command::new("rdmsr")
         .arg("0xC0C")
         .output()
         .map(|output| String::from_utf8_lossy(&output.stdout).contains("hypervisor"))
         .unwrap_or(false);
-    println!("Rdmsr check: {}", rdmsr);
 
     let dmesg = Command::new("dmesg")
         .output()
@@ -147,14 +140,12 @@ fn is_hypervisor_present() -> bool {
             output_str.contains("virtualization") || output_str.contains("hypervisor")
         })
         .unwrap_or(false);
-    println!("Dmesg check: {}", dmesg);
 
     let device_tree = Command::new("cat")
         .arg("/proc/device-tree/hypervisor")
         .output()
         .map(|output| !String::from_utf8_lossy(&output.stdout).is_empty())
         .unwrap_or(false);
-    println!("Device tree check: {}", device_tree);
 
     cpuinfo || sys_hypervisor || rdmsr || dmesg || device_tree
 }
@@ -165,7 +156,6 @@ fn is_hypervisor_present() -> bool {
     let cpuinfo = fs::read_to_string("/proc/cpuinfo")
         .map(|content| content.contains("hypervisor"))
         .unwrap_or(false);
-    println!("CPUinfo check: {}", cpuinfo);
     cpuinfo
 }
 
