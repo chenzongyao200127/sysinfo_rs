@@ -7,6 +7,8 @@ use std::fs;
 pub struct SoftwareInfo {
     pub os_release: String,
     pub uname: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra: Option<serde_json::Value>,
 }
 
 impl SoftwareInfo {
@@ -14,7 +16,13 @@ impl SoftwareInfo {
         Ok(Self {
             os_release: get_os_release()?,
             uname: get_uname()?,
+            extra: None,
         })
+    }
+
+    pub fn with_extra(mut self, extra: serde_json::Value) -> Self {
+        self.extra = Some(extra);
+        self
     }
 }
 
@@ -63,5 +71,25 @@ mod tests {
     fn test_get_uname() {
         let uname = get_uname().unwrap();
         assert!(!uname.is_empty());
+    }
+
+    #[test]
+    fn test_software_info_with_extra() -> Result<()> {
+        let software_info =
+            SoftwareInfo::new()?.with_extra(serde_json::json!({"custom_field": "value"}));
+
+        assert!(software_info.extra.is_some());
+        assert_eq!(software_info.extra.unwrap()["custom_field"], "value");
+        Ok(())
+    }
+
+    #[test]
+    fn test_software_info_serialization() -> Result<()> {
+        let software_info = SoftwareInfo::new()?;
+        let serialized = serde_json::to_string(&software_info)?;
+        let deserialized: SoftwareInfo = serde_json::from_str(&serialized)?;
+        assert_eq!(software_info.os_release, deserialized.os_release);
+        assert_eq!(software_info.uname, deserialized.uname);
+        Ok(())
     }
 }

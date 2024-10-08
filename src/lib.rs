@@ -19,13 +19,12 @@
 //!
 //! # Example
 //! ```
-//! use your_crate::{get_machine_info, MachineInfo};
+//! use sysinfo_rs::get_machine_info;
 //!
-//! fn main() {
-//!     match get_machine_info() {
-//!         Ok(info) => println!("{:?}", info),
-//!         Err(e) => eprintln!("Error retrieving machine info: {:?}", e),
-//!     }
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let machine_info = get_machine_info()?;
+//!     println!("Machine Info: {:?}", machine_info);
+//!     Ok(())
 //! }
 //! ```
 
@@ -42,6 +41,13 @@ mod tests {
     fn test_machine_info() -> Result<()> {
         let machine_info = get_machine_info()?;
         println!("{:?}", machine_info);
+
+        let hardware = machine_info.hardware;
+        let software = machine_info.software;
+
+        println!("{:?}", hardware);
+        println!("{:?}", software);
+
         Ok(())
     }
 }

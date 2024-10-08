@@ -1,0 +1,59 @@
+# Updated deny.toml for cargo-deny with the latest configuration
+
+[graph]
+targets = [
+  # Specify target triples here if needed
+  #{ triple = "x86_64-unknown-linux-musl" },
+]
+
+# Advisories section, new format without deprecated fields
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+# Remove deprecated fields vulnerability, unmaintained, unsound, and notice
+
+# Licenses section, updated for version 2
+[licenses]
+version = 2
+# The unlicensed field has been deprecated, and should not be used
+# You can clarify licenses for specific crates using clarify if necessary
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Unicode-DFS-2016",
+  "MPL-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "CC0-1.0",
+]
+# All licenses not explicitly allowed are denied by default
+
+[licenses.private]
+ignore = false
+registries = [
+  #"https://sekretz.com/registry"
+]
+
+# Bans section
+[bans]
+multiple-versions = "warn"
+wildcards = "allow"
+highlight = "all"
+allow = []
+deny = []
+skip = []
+skip-tree = []
+
+# Sources section
+[sources]
+unknown-registry = "warn"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
+
+[sources.allow-org]
+github = []
+gitlab = []
+bitbucket = []
