@@ -1,7 +1,8 @@
 use anyhow::{Context, Result};
+use rustix::system::uname;
 use serde::{Deserialize, Serialize};
-use std::ffi::CStr;
 use std::fs;
+use std::sync::OnceLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SoftwareInfo {
@@ -11,11 +12,14 @@ pub struct SoftwareInfo {
     pub extra: Option<serde_json::Value>,
 }
 
+// Cache uname info since it rarely changes
+static UNAME_INFO: OnceLock<String> = OnceLock::new();
+
 impl SoftwareInfo {
     pub fn new() -> Result<Self> {
         Ok(Self {
             os_release: get_os_release()?,
-            uname: get_uname()?,
+            uname: get_cached_uname()?,
             extra: None,
         })
     }
@@ -30,31 +34,37 @@ fn get_os_release() -> Result<String> {
     fs::read_to_string("/etc/os-release").context("Failed to read /etc/os-release")
 }
 
+fn get_cached_uname() -> Result<String> {
+    Ok(UNAME_INFO
+        .get_or_init(|| get_uname().expect("Failed to get uname info"))
+        .clone())
+}
+
 fn get_uname() -> Result<String> {
-    let utsname = unsafe {
-        let mut info: libc::utsname = std::mem::zeroed();
-        if libc::uname(&mut info) != 0 {
-            return Err(anyhow::anyhow!("Failed to get uname information"));
-        }
-        info
+    let uname = uname();
+
+    let mut fields = Vec::with_capacity(6);
+
+    let convert_field = |field: &[u8]| -> Result<String> {
+        Ok(std::str::from_utf8(field)
+            .context("Invalid UTF-8")?
+            .to_owned())
     };
 
-    let to_string = |field: &[libc::c_char]| {
-        unsafe { CStr::from_ptr(field.as_ptr()) }
-            .to_str()
-            .map(String::from)
-            .context("Invalid UTF-8 in uname field")
-    };
+    fields.push(("sysname", convert_field(uname.sysname().to_bytes())?));
+    fields.push(("nodename", convert_field(uname.nodename().to_bytes())?));
+    fields.push(("release", convert_field(uname.release().to_bytes())?));
+    fields.push(("version", convert_field(uname.version().to_bytes())?));
+    fields.push(("machine", convert_field(uname.machine().to_bytes())?));
+    fields.push(("domainname", convert_field(uname.domainname().to_bytes())?));
 
-    let uname_info = serde_json::json!({
-        "sysname": to_string(&utsname.sysname)?,
-        "nodename": to_string(&utsname.nodename)?,
-        "release": to_string(&utsname.release)?,
-        "version": to_string(&utsname.version)?,
-        "machine": to_string(&utsname.machine)?
-    });
+    let uname_info = serde_json::Map::from_iter(
+        fields
+            .into_iter()
+            .map(|(k, v)| (k.to_owned(), serde_json::Value::String(v))),
+    );
 
-    Ok(uname_info.to_string())
+    Ok(serde_json::Value::Object(uname_info).to_string())
 }
 
 #[cfg(test)]
@@ -62,34 +72,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_os_release() {
-        let os_release = get_os_release().unwrap();
+    fn test_get_os_release() -> Result<()> {
+        let os_release = get_os_release()?;
         assert!(!os_release.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn test_get_uname() {
-        let uname = get_uname().unwrap();
+    fn test_get_uname() -> Result<()> {
+        let uname = get_uname()?;
         assert!(!uname.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn test_software_info_with_extra() -> Result<()> {
-        let software_info =
-            SoftwareInfo::new()?.with_extra(serde_json::json!({"custom_field": "value"}));
+    fn test_software_info_with_extra() {
+        let software_info = SoftwareInfo::new()
+            .unwrap()
+            .with_extra(serde_json::json!({"custom_field": "value"}));
 
         assert!(software_info.extra.is_some());
-        assert_eq!(software_info.extra.unwrap()["custom_field"], "value");
-        Ok(())
+        assert_eq!(
+            software_info.extra.as_ref().map(|e| &e["custom_field"]),
+            Some(&serde_json::json!("value"))
+        );
     }
 
     #[test]
-    fn test_software_info_serialization() -> Result<()> {
-        let software_info = SoftwareInfo::new()?;
-        let serialized = serde_json::to_string(&software_info)?;
-        let deserialized: SoftwareInfo = serde_json::from_str(&serialized)?;
+    fn test_software_info_serialization() {
+        let software_info = SoftwareInfo::new().unwrap();
+        let serialized = serde_json::to_string(&software_info).unwrap();
+        let deserialized: SoftwareInfo = serde_json::from_str(&serialized).unwrap();
         assert_eq!(software_info.os_release, deserialized.os_release);
         assert_eq!(software_info.uname, deserialized.uname);
-        Ok(())
     }
 }
