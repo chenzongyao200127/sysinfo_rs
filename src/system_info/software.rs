@@ -72,17 +72,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_get_os_release() -> Result<()> {
-        let os_release = get_os_release()?;
+    fn test_get_os_release() {
+        let os_release = get_os_release().unwrap();
         assert!(!os_release.is_empty());
-        Ok(())
     }
 
     #[test]
-    fn test_get_uname() -> Result<()> {
-        let uname = get_uname()?;
+    fn test_get_uname() {
+        let uname = get_uname().unwrap();
         assert!(!uname.is_empty());
-        Ok(())
     }
 
     #[test]

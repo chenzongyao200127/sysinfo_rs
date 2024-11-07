@@ -16,17 +16,6 @@
 //! - Ensure the appropriate development packages are installed for the target platform.
 //! - On **non-Linux** platforms, functionality relying on `libudev` will be disabled to ensure compatibility.
 //! - For custom configurations, such as setting `PKG_CONFIG_PATH`, ensure the environment is correctly configured when building on Linux systems.
-//!
-//! # Example
-//! ```
-//! use sysinfo_rs::get_machine_info;
-//!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let machine_info = get_machine_info()?;
-//!     println!("Machine Info: {:?}", machine_info);
-//!     Ok(())
-//! }
-//! ```
 
 pub mod system_info;
 

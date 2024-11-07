@@ -4,9 +4,13 @@
 //!
 //! ```
 //! use sysinfo_rs::get_machine_info;
+//! use anyhow::Result;
 //!
-//! let machine_info = get_machine_info()?;
-//! println!("Machine Info: {:?}", machine_info);
+//! fn main() -> Result<()> {
+//!     let machine_info = get_machine_info()?;
+//!     println!("Machine Info: {:?}", machine_info);
+//!     Ok(())
+//! }
 //! ```
 
 pub mod hardware;
