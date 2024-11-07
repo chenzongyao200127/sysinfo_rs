@@ -168,7 +168,7 @@ fn check_device_tree_hypervisor() -> bool {
         .unwrap_or(false)
 }
 
-// TODO: add other arch support
+// TODO: add other arch support, such as riscv64
 #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 fn is_hypervisor_present() -> bool {
     // Use const array for paths to check
@@ -201,8 +201,6 @@ fn is_hypervisor_present() -> bool {
 
 /// Detects if the system is running in a virtual machine environment.
 /// Uses various detection techniques inspired by Al-khaser and Pafish projects.
-///
-/// For more advanced VM detection techniques, see:
 /// - Al-khaser: https://github.com/LordNoteworthy/al-khaser
 /// - Pafish: https://github.com/a0rtega/pafish
 fn determine_virtual_machine_status() -> bool {

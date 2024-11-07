@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rustix::system::uname;
+use nix::sys::utsname::uname;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::OnceLock;
@@ -23,11 +23,6 @@ impl SoftwareInfo {
             extra: None,
         })
     }
-
-    pub fn with_extra(mut self, extra: serde_json::Value) -> Self {
-        self.extra = Some(extra);
-        self
-    }
 }
 
 fn get_os_release() -> Result<String> {
@@ -41,22 +36,19 @@ fn get_cached_uname() -> Result<String> {
 }
 
 fn get_uname() -> Result<String> {
-    let uname = uname();
+    let uname = uname().context("Failed to get uname info")?;
 
     let mut fields = Vec::with_capacity(6);
 
-    let convert_field = |field: &[u8]| -> Result<String> {
-        Ok(std::str::from_utf8(field)
-            .context("Invalid UTF-8")?
-            .to_owned())
-    };
-
-    fields.push(("sysname", convert_field(uname.sysname().to_bytes())?));
-    fields.push(("nodename", convert_field(uname.nodename().to_bytes())?));
-    fields.push(("release", convert_field(uname.release().to_bytes())?));
-    fields.push(("version", convert_field(uname.version().to_bytes())?));
-    fields.push(("machine", convert_field(uname.machine().to_bytes())?));
-    fields.push(("domainname", convert_field(uname.domainname().to_bytes())?));
+    fields.push(("sysname", uname.sysname().to_string_lossy().into_owned()));
+    fields.push(("nodename", uname.nodename().to_string_lossy().into_owned()));
+    fields.push(("release", uname.release().to_string_lossy().into_owned()));
+    fields.push(("version", uname.version().to_string_lossy().into_owned()));
+    fields.push(("machine", uname.machine().to_string_lossy().into_owned()));
+    fields.push((
+        "domainname",
+        uname.domainname().to_string_lossy().into_owned(),
+    ));
 
     let uname_info = serde_json::Map::from_iter(
         fields
@@ -85,15 +77,13 @@ mod tests {
 
     #[test]
     fn test_software_info_with_extra() {
-        let software_info = SoftwareInfo::new()
-            .unwrap()
-            .with_extra(serde_json::json!({"custom_field": "value"}));
+        let mut software_info = SoftwareInfo::new().expect("Failed to create SoftwareInfo");
+        software_info.extra = Some(serde_json::json!({"custom_field": "value"}));
 
         assert!(software_info.extra.is_some());
-        assert_eq!(
-            software_info.extra.as_ref().map(|e| &e["custom_field"]),
-            Some(&serde_json::json!("value"))
-        );
+        if let Some(extra) = &software_info.extra {
+            assert_eq!(extra["custom_field"], "value");
+        }
     }
 
     #[test]
