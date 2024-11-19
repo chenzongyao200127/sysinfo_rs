@@ -27,6 +27,7 @@ pub struct MachineInfo {
     pub software: SoftwareInfo,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra: Option<serde_json::Value>,
+    pub version: String,
 }
 
 impl MachineInfo {
@@ -40,6 +41,7 @@ pub struct MachineInfoBuilder {
     hardware: Option<HardwareInfo>,
     software: Option<SoftwareInfo>,
     extra: Option<serde_json::Value>,
+    version: Option<String>,
 }
 
 impl MachineInfoBuilder {
@@ -58,6 +60,11 @@ impl MachineInfoBuilder {
         self
     }
 
+    pub fn version(mut self, version: String) -> Self {
+        self.version = Some(version);
+        self
+    }
+
     pub fn build(self) -> Result<MachineInfo> {
         Ok(MachineInfo {
             hardware: self
@@ -67,6 +74,7 @@ impl MachineInfoBuilder {
                 .software
                 .ok_or_else(|| anyhow::anyhow!("Software info is required"))?,
             extra: self.extra,
+            version: self.version.unwrap_or_else(|| "1.0".to_string()),
         })
     }
 }
@@ -75,6 +83,7 @@ pub fn get_machine_info() -> Result<MachineInfo> {
     MachineInfo::builder()
         .hardware(HardwareInfo::new()?)
         .software(SoftwareInfo::new()?)
+        .version("1.0".to_string())
         .build()
 }
 
@@ -93,6 +102,7 @@ mod tests {
             .hardware(hardware.clone())
             .software(software.clone())
             .extra(serde_json::json!({"custom_field": "value"}))
+            .version("1.0".to_string())
             .build()?;
 
         assert_eq!(
@@ -104,6 +114,7 @@ mod tests {
             machine_info.extra,
             Some(serde_json::json!({"custom_field": "value"}))
         );
+        assert_eq!(machine_info.version, "1.0");
 
         Ok(())
     }
@@ -113,6 +124,7 @@ mod tests {
         let machine_info = get_machine_info()?;
         assert!(!machine_info.hardware.mac_addresses.is_empty());
         assert!(!machine_info.software.os_release.is_empty());
+        assert_eq!(machine_info.version, "1.0");
         Ok(())
     }
 
@@ -129,6 +141,7 @@ mod tests {
             machine_info.software.os_release,
             deserialized.software.os_release
         );
+        assert_eq!(machine_info.version, deserialized.version);
         Ok(())
     }
 
@@ -165,7 +178,8 @@ mod tests {
           "software": {
             "os_release": "NAME=\"Cloud Linux\"\nVERSION=\"3 (Custom Edition)\"\nID=\"cloudlinux\"\nID_LIKE=\"rhel fedora centos\"\nVERSION_ID=\"3\"\nVARIANT=\"Custom Edition\"\nVARIANT_ID=\"custom\"\nPLATFORM_ID=\"platform:cl8\"\nPRETTY_NAME=\"Cloud Linux 3 (Custom Edition)\"\nANSI_COLOR=\"0;31\"\nHOME_URL=\"https://www.example.com/\"\n",
             "uname": "{\"machine\":\"x86_64\",\"nodename\":\"********\",\"release\":\"6.6.31-cloudlinux\",\"sysname\":\"Linux\",\"version\":\"1 SMP Thu May 23 08:36:57 UTC 2024\"}"
-          }
+          },
+          "version": "1.0"
         }"#;
 
         let deserialized: MachineInfo = serde_json::from_str(json_data)?;
@@ -223,6 +237,7 @@ mod tests {
         // Test software fields
         assert!(deserialized.software.os_release.contains("Cloud Linux"));
         assert!(deserialized.software.uname.contains("x86_64"));
+        assert_eq!(deserialized.version, "1.0");
 
         Ok(())
     }
@@ -263,6 +278,7 @@ mod tests {
                 extra: None,
             },
             extra: None,
+            version: "1.0".to_string(),
         };
 
         let serialized = serde_json::to_string(&machine_info)?;
@@ -277,6 +293,7 @@ mod tests {
         assert!(deserialized["hardware"]["enclosure_info"]["manufacturer"].is_string());
         assert!(deserialized["software"]["os_release"].is_string());
         assert!(deserialized["software"]["uname"].is_string());
+        assert_eq!(deserialized["version"], "1.0");
 
         // Ensure that extra fields are not present
         assert!(deserialized["hardware"]["extra"].is_null());
@@ -323,7 +340,8 @@ mod tests {
             "uname": "Test Uname",
             "extra_software_field": "extra_software_value"
           },
-          "extra_top_level_field": "extra_top_level_value"
+          "extra_top_level_field": "extra_top_level_value",
+          "version": "1.0"
         }"#;
 
         let deserialized: MachineInfo = serde_json::from_str(json_data)?;
@@ -332,6 +350,7 @@ mod tests {
         assert!(deserialized.hardware.cpu_is_virtual);
         assert_eq!(deserialized.hardware.disk_serial_number, "********");
         assert_eq!(deserialized.software.os_release, "Test OS 1.0");
+        assert_eq!(deserialized.version, "1.0");
 
         // Check that extra fields are ignored without causing errors
         assert!(deserialized.hardware.extra.is_none());
